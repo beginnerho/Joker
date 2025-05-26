@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="my">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gozilla ခုန်ဂိမ်း</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Padauk:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Padauk', 'Inter', sans-serif;
+            touch-action: manipulation;
+            overscroll-behavior-y: contain;
+        }
+        #gozillaElement {
+            user-select: none;
+            width: 48px;
+            height: 48px;
+            font-size: 36px;
+            line-height: 48px;
+            text-align: center;
+            transform: scaleX(-1);
+        }
+        .obstacle {
+            user-select: none;
+            text-align: center;
+        }
+        #gameArea::-webkit-scrollbar {
+            display: none;
+        }
+        #gameArea {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+        .background-text {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 5rem;
+            color: rgba(255, 255, 255, 0.3);
+            font-weight: bold;
+            pointer-events: none;
+            z-index: 0;
+            white-space: nowrap;
+        }
+    </style>
+</head>
+<body class="bg-sky-100 flex flex-col items-center justify-center min-h-screen select-none">
+
+    <div id="gameContainer" class="w-full max-w-3xl p-2 sm:p-4 relative">
+        <div id="gameArea" class="relative w-full h-[300px] sm:h-[400px] bg-sky-500 rounded-lg shadow-2xl overflow-hidden border-4 border-sky-700">
+            <div class="background-text">Kaung Htet Mobile</div>
+
+            <div id="gozillaElement" class="absolute bottom-0 left-4 text-4xl z-10">🚁</div>
+
+            <div id="obstaclesDiv" class="absolute inset-0 z-10"></div>
+
+            <div id="scoreDisplay" class="absolute top-2 right-2 sm:top-4 sm:right-4 text-white text-lg sm:text-2xl font-bold p-2 bg-black bg-opacity-20 rounded-md z-20">အမှတ်: 0</div>
+
+            <div id="instructionsScreen" class="absolute inset-0 bg-black bg-opacity-70 flex flex-col items-center justify-center text-white p-4 rounded-md z-30">
+                <h2 class="text-2xl sm:text-3xl font-bold mb-4">Gozilla ခုန်ဂိမ်း</h2>
+                <p class="text-base sm:text-lg mb-6 text-center">ခုန်ရန် Spacebar (သို့) Screen ကိုနှိပ်ပါ</p>
+                <button id="startButton" class="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-6 sm:py-3 sm:px-8 rounded-lg text-lg sm:text-xl shadow-md transition-transform duration-150 ease-in-out active:scale-95">စတင်မည်</button>
+            </div>
+
+            <div id="gameOverScreen" class="hidden absolute inset-0 bg-black bg-opacity-80 flex flex-col items-center justify-center text-white p-4 rounded-md z-30">
+                <h2 class="text-2xl sm:text-3xl font-bold mb-3 text-red-400">သင်ရှုံးသွားပါပြီ!</h2>
+                <p id="finalScore" class="text-lg sm:text-xl mb-6">သင်ရရှိသော အမှတ်: 0</p>
+                <button id="restartButton" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-6 sm:py-3 sm:px-8 rounded-lg text-lg sm:text-xl shadow-md transition-transform duration-150 ease-in-out active:scale-95">ထပ်ဆော့မည်</button>
+            </div>
+        </div>
+
+        <!-- Mobile Controls -->
+        <div class="mt-4 flex justify-center gap-6 sm:hidden">
+            <button id="mobileStart" class="bg-green-600 text-white px-4 py-2 rounded shadow">Start</button>
+            <button id="mobileJump" class="bg-yellow-500 text-white px-4 py-2 rounded shadow">Jump</button>
+            <button id="mobileRestart" class="bg-red-500 text-white px-4 py-2 rounded shadow">Restart</button>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const gameArea = document.getElementById('gameArea');
+            const gozillaElement = document.getElementById('gozillaElement');
+            const obstaclesDiv = document.getElementById('obstaclesDiv');
+            const scoreDisplay = document.getElementById('scoreDisplay');
+            const instructionsScreen = document.getElementById('instructionsScreen');
+            const gameOverScreen = document.getElementById('gameOverScreen');
+            const startButton = document.getElementById('startButton');
+            const restartButton = document.getElementById('restartButton');
+            const finalScoreDisplay = document.getElementById('finalScore');
+            const mobileStart = document.getElementById('mobileStart');
+            const mobileJump = document.getElementById('mobileJump');
+            const mobileRestart = document.getElementById('mobileRestart');
+
+            let isGameRunning = false;
+            let isJumping = false;
+            let isGameOver = false;
+            let velocityY = 0;
+            const gravity = 0.8;
+            const jumpStrength = 16;
+            let score = 0;
+            let level = 1;
+            let obstacleSpeed = 5;
+            let obstacleIntervalDuration = 1800;
+
+            let obstacles = [];
+            let gameLoopInterval;
+            let obstacleInterval;
+            let gozillaBottom = 0;
+
+            function initGame() {
+                isGameRunning = false;
+                isJumping = false;
+                isGameOver = false;
+                velocityY = 0;
+                score = 0;
+                level = 1;
+                obstacleSpeed = 5;
+                gozillaBottom = 0;
+                gozillaElement.style.bottom = gozillaBottom + 'px';
+                obstacles.forEach(obs => obs.remove());
+                obstacles = [];
+                updateScoreDisplay();
+                clearInterval(gameLoopInterval);
+                clearInterval(obstacleInterval);
+                gameOverScreen.classList.add('hidden');
+                instructionsScreen.classList.remove('hidden');
+            }
+
+            function startGame() {
+                if (isGameRunning) return;
+                isGameRunning = true;
+                isGameOver = false;
+                score = 0;
+                level = 1;
+                obstacleSpeed = 5;
+                updateScoreDisplay();
+                gozillaBottom = 0;
+                gozillaElement.style.bottom = gozillaBottom + 'px';
+                isJumping = false;
+                velocityY = 0;
+                instructionsScreen.classList.add('hidden');
+                gameOverScreen.classList.add('hidden');
+                clearInterval(gameLoopInterval);
+                clearInterval(obstacleInterval);
+                obstacles.forEach(obs => obs.remove());
+                obstacles = [];
+                gameLoopInterval = setInterval(gameLoop, 25);
+                obstacleInterval = setInterval(createObstacle, obstacleIntervalDuration);
+            }
+
+            function jump() {
+                if (!isJumping && isGameRunning && !isGameOver) {
+                    isJumping = true;
+                    velocityY = jumpStrength;
+                }
+            }
+
+            function createObstacle() {
+                if (!isGameRunning || isGameOver) return;
+                const obstacle = document.createElement('div');
+                obstacle.classList.add('obstacle', 'absolute', 'bottom-0');
+                obstacle.scored = false;
+                const type = Math.random() < 0.5 ? 'rock' : 'tree';
+                if (type === 'rock') {
+                    obstacle.textContent = '🪨';
+                    obstacle.classList.add('w-10', 'h-10');
+                    obstacle.style.fontSize = '28px';
+                    obstacle.style.lineHeight = '40px';
+                } else {
+                    obstacle.textContent = '🌳';
+                    obstacle.classList.add('w-12', 'h-16');
+                    obstacle.style.fontSize = '40px';
+                    obstacle.style.lineHeight = '64px';
+                }
+                obstacle.style.left = gameArea.offsetWidth + 'px';
+                obstaclesDiv.appendChild(obstacle);
+                obstacles.push(obstacle);
+            }
+
+            function moveObstacles() {
+                if (!isGameRunning || isGameOver) return;
+                const gozillaRect = gozillaElement.getBoundingClientRect();
+                for (let i = obstacles.length - 1; i >= 0; i--) {
+                    const obstacle = obstacles[i];
+                    let obstacleLeft = parseFloat(obstacle.style.left);
+                    obstacleLeft -= obstacleSpeed;
+                    obstacle.style.left = obstacleLeft + 'px';
+                    const obstacleRect = obstacle.getBoundingClientRect();
+                    if (obstacleRect.right > 0 && obstacleRect.right < gozillaRect.left && !obstacle.scored) {
+                        score++;
+                        obstacle.scored = true;
+                        if (score % 5 === 0) {
+                            obstacleSpeed += 0.5;
+                        }
+                        updateScoreDisplay();
+                    }
+                    if (obstacleLeft < -obstacle.offsetWidth) {
+                        obstacle.remove();
+                        obstacles.splice(i, 1);
+                    }
+                }
+            }
+
+            function checkCollision(obstacle) {
+                const gozillaRect = gozillaElement.getBoundingClientRect();
+                const obstacleRect = obstacle.getBoundingClientRect();
+                const padding = 5;
+                return (
+                    gozillaRect.left < obstacleRect.right - padding &&
+                    gozillaRect.right > obstacleRect.left + padding &&
+                    gozillaRect.top < obstacleRect.bottom - padding &&
+                    gozillaRect.bottom > obstacleRect.top + padding
+                );
+            }
+
+            function handleGameOver() {
+                if (isGameOver) return;
+                isGameRunning = false;
+                isGameOver = true;
+                clearInterval(gameLoopInterval);
+                clearInterval(obstacleInterval);
+                finalScoreDisplay.textContent = 'သင်ရရှိသော အမှတ်: ' + score;
+                gameOverScreen.classList.remove('hidden');
+            }
+
+            function updateScoreDisplay() {
+                level = Math.floor(score / 5) + 1;
+                scoreDisplay.textContent = 'အမှတ်: ' + score + ' | အဆင့်: ' + level;
+            }
+
+            function gameLoop() {
+                if (isGameOver) return;
+                if (!isGameRunning) return;
+                if (isJumping) {
+                    gozillaBottom += velocityY;
+                    velocityY -= gravity;
+                    if (gozillaBottom <= 0) {
+                        gozillaBottom = 0;
+                        isJumping = false;
+                        velocityY = 0;
+                    }
+                    gozillaElement.style.bottom = gozillaBottom + 'px';
+                }
+                moveObstacles();
+                updateScoreDisplay();
+                for (const obstacle of obstacles) {
+                    if (checkCollision(obstacle)) {
+                        handleGameOver();
+                        return;
+                    }
+                }
+            }
+
+            startButton.addEventListener('click', startGame);
+            restartButton.addEventListener('click', initGame);
+            mobileStart.addEventListener('click', () => {
+                if (!isGameRunning && !isGameOver && !instructionsScreen.classList.contains('hidden')) {
+                    startGame();
+                }
+            });
+            mobileJump.addEventListener('click', jump);
+            mobileRestart.addEventListener('click', () => {
+                if (isGameOver) {
+                    initGame();
+                }
+            });
+
+            document.addEventListener('keydown', (e) => {
+                if (e.code === 'Space' || e.key === ' ' || e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    if (!isGameRunning && !isGameOver && !instructionsScreen.classList.contains('hidden')) {
+                        startGame();
+                    } else if (isGameOver) {
+                        initGame();
+                    } else if (isGameRunning) {
+                        jump();
+                    }
+                }
+            });
+
+            gameArea.addEventListener('touchstart', (e) => {
+                e.preventDefault();
+                if (!isGameRunning && !isGameOver && !instructionsScreen.classList.contains('hidden')) {
+                    startGame();
+                } else if (isGameOver) {
+                    initGame();
+                } else if (isGameRunning) {
+                    jump();
+                }
+            }, { passive: false });
+
+            initGame();
+        });
+    </script>
+</body>
+</html>
